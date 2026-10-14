@@ -1,0 +1,20 @@
+# Variables de entorno y secretos
+.env
+.env.local
+.env.*
+
+# Dependencias y compilaciones de Node (uis)
+node_modules/
+.next/
+dist/
+build/
+
+# Python (services)
+__pycache__/
+*.pyc
+.venv/
+env/
+
+# Logs y SO
+*.log
+.DS_Store

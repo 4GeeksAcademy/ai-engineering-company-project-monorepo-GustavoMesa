@@ -1,0 +1,41 @@
+version: "3.8"
+
+services:
+  # 1. Servicio de interfaces (Website y Backoffice)
+  uis:
+    build:
+      context: ./uis
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+      - "3001:3001"
+    volumes:
+      - ./uis:/app
+      - /app/node_modules
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=development
+    networks:
+      - monorepo-net
+
+  # 2. Servicio de backend en FastAPI
+  backend:
+    build:
+      context: ./services
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./services:/app
+    env_file:
+      - .env
+    environment:
+      - PORT=8000
+    networks:
+      - monorepo-net
+
+# 3. Red Docker definida explícitamente
+networks:
+  monorepo-net:
+    driver: bridge
