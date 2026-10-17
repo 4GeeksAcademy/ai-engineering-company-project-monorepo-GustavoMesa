@@ -23,6 +23,26 @@
 
 ---
 
+## Skills Registradas (Inventory Manager)
+
+### Skill 2: Inventory Manager
+- **Prompt:** "Gestiona el inventario de Brasaland calculando el stock exclusivamente a partir de movimientos (entradas, salidas, mermas)."
+- **Descripción:** Sistema de gestión de inventario con stock derivado de movimientos. Implementa endpoints REST para registrar movimientos, consultar stock calculado en tiempo real, y obtener historial. Valida stock negativo antes de salidas/mermas.
+- **Fecha de creación:** 17 de octubre de 2026
+- **Rama:** `feature/inventory-manager`
+- **Archivos:** `src/inventory/` (models.py, service.py, router.py)
+- **Especificación EARS:** `specs/inventory-manager/spec.md` (INV-001 a INV-006)
+
+---
+
+## Incidencias Documentadas
+
+| ID | Fecha | Tipo | Severidad | Archivo | Estado |
+|---|---|---|---|---|---|
+| INC-001 | 17 oct 2026 | violacion_regla | 🔴 Alta | `docs/incidencias/2026-10-17--falta-registro-incidencias.md` | Resuelta |
+
+---
+
 ## Reglas Aplicables
 
 Las reglas del proyecto están definidas en `.agent/rules/agent-rules.md`:
