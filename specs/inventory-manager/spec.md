@@ -41,6 +41,7 @@ Sistema de gestión de inventario para **Brasaland** (cadena de 14 restaurantes 
 | id | UUID | Identificador único |
 | name | string | Nombre del producto |
 | sku | string | Código SKU |
+| category | enum | Categoría del producto (`CARNE`, `BEBIDA`, `LACTEO`, `VEGETAL`, `OTRO`) |
 | stock_minimo | float | Umbral mínimo para alertas |
 | unit | string | Unidad de medida (kg, L, unidades) |
 | created_at | datetime | Fecha de creación |
@@ -118,6 +119,11 @@ INV-006: STOCK_NEGATIVO_RECHAZADO
   WHEN se registra una SALIDA o MERMA con quantity > current_stock
   THEN el sistema rechaza con error 422 "stock_insuficiente"
   AND no se modifica ningún movimiento
+
+INV-007: FILTRO_POR_CATEGORIA
+  WHEN se consulta GET /api/v1/inventory/products?category=Carne
+  THEN el sistema retorna solo los productos cuya category coincide
+  AND excluye productos de otras categorías
 ```
 
 ---
