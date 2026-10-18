@@ -1,0 +1,14 @@
+# Dependencias y módulos
+node_modules/
+.next/
+build/
+dist/
+
+# Entorno
+.env
+.env.local
+.env.*
+
+# Logs y SO
+*.log
+.DS_Store
