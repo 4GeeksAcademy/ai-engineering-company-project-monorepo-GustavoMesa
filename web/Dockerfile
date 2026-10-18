@@ -1,23 +1,36 @@
-# Imagen base oficial de Node.js Alpine
-FROM node:18-alpine
+# ============================================
+# BRASALAND — WEB (Next.js)
+# Multi-stage build: builder + runner
+# ============================================
 
-# Directorio de trabajo dentro del contenedor
+# ---- BUILDER ----
+FROM node:18-alpine AS builder
+
 WORKDIR /app
 
-# Copiamos los archivos de dependencias primero (para cachear capa)
-COPY package*.json ./
-
-# Instalamos dependencias
+# Dependencias primero (capa cacheable)
+COPY package.json package-lock.json* ./
 RUN npm install
 
-# Copiamos el resto del código fuente
+# Código fuente y compilación
 COPY . .
+RUN npm run build
 
-# Compilamos la aplicación (next)
-RUN if [ -f "next.config.js" ] || [ -f "next.config.mjs" ]; then npm run build; fi
+# ---- RUNNER (producción) ----
+FROM node:18-alpine AS runner
 
-# Exponemos el puerto 3000
+WORKDIR /app
+
+# Solo lo necesario para servir la app compilada
+COPY --from=builder /app/next.config.js ./
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./package.json
+
+# Puerto de escucha
 EXPOSE 3000
 
-# Comando para servir la web
-CMD ["npm", "run", "dev", "--", "-p", "3000"]
+# Arrancar en modo producción
+ENV NODE_ENV=production
+CMD ["npm", "start"]
