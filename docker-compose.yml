@@ -1,26 +1,48 @@
 version: "3.8"
 
 services:
-  # 1. Servicio de interfaces (Website y Backoffice)
-  uis:
+  # 1. Sitio web público
+  web:
     build:
-      context: ./uis
+      context: ./web
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
-      - "3001:3001"
     volumes:
-      - ./uis:/app
+      - ./web:/app
       - /app/node_modules
     env_file:
       - .env
     environment:
+      - PORT=3000
       - NODE_ENV=development
     networks:
-      - monorepo-net
+      - brasaland-net
+    depends_on:
+      - services
 
-  # 2. Servicio de backend en FastAPI
-  backend:
+  # 2. Panel de administración (backoffice)
+  backoffice:
+    build:
+      context: ./backoffice
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./backoffice:/app
+      - /app/node_modules
+    env_file:
+      - .env
+    environment:
+      - PORT=3001
+      - NODE_ENV=development
+    networks:
+      - brasaland-net
+    depends_on:
+      - services
+
+  # 3. Backend API (FastAPI)
+  services:
     build:
       context: ./services
       dockerfile: Dockerfile
@@ -33,9 +55,9 @@ services:
     environment:
       - PORT=8000
     networks:
-      - monorepo-net
+      - brasaland-net
 
-# 3. Red Docker definida explícitamente
+# Red interna para comunicación entre servicios por nombre de contenedor
 networks:
-  monorepo-net:
+  brasaland-net:
     driver: bridge
