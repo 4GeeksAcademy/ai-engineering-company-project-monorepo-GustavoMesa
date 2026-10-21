@@ -4,12 +4,12 @@ services:
   # 1. Sitio web público
   web:
     build:
-      context: ./web
+      context: ./uis/website
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
     volumes:
-      - ./web:/app
+      - ./uis/website:/app
       - /app/node_modules
     env_file:
       - .env
@@ -24,18 +24,19 @@ services:
   # 2. Panel de administración (backoffice)
   backoffice:
     build:
-      context: ./backoffice
+      context: ./uis/backoffice
       dockerfile: Dockerfile
     ports:
       - "3001:3001"
     volumes:
-      - ./backoffice:/app
+      - ./uis/backoffice:/app
       - /app/node_modules
     env_file:
       - .env
     environment:
       - PORT=3001
       - NODE_ENV=development
+      - INVENTORY_API_URL=http://services:8000/api/v1/inventory
     networks:
       - brasaland-net
     depends_on:
@@ -44,12 +45,14 @@ services:
   # 3. Backend API (FastAPI)
   services:
     build:
-      context: ./services
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/Dockerfile
     ports:
       - "8000:8000"
     volumes:
-      - ./services:/app
+      - ./services:/app/services
+      - ./src:/app/src
+      - ./data:/app/data
     env_file:
       - .env
     environment:

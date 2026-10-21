@@ -23,6 +23,9 @@ class MovementCreate(BaseModel):
 class ProductCreate(BaseModel):
     name: str
     sku: str
+    category: str = Field(
+        default="OTRO", pattern="^(CARNE|BEBIDA|LACTEO|VEGETAL|OTRO)$"
+    )
     stock_minimo: float = 0
     unit: str = "unidades"
 
@@ -81,8 +84,8 @@ def create_product(p: ProductCreate):
     now = datetime.now(timezone.utc).isoformat()
     try:
         conn.execute(
-            "INSERT INTO products VALUES (?,?,?,?,?,?)",
-            (pid, p.name, p.sku, p.stock_minimo, p.unit, now),
+            "INSERT INTO products (id, name, sku, category, stock_minimo, unit, created_at) VALUES (?,?,?,?,?,?,?)",
+            (pid, p.name, p.sku, p.category, p.stock_minimo, p.unit, now),
         )
         conn.commit()
     except Exception as e:
@@ -93,10 +96,19 @@ def create_product(p: ProductCreate):
 
 
 @router.get("/products")
-def list_products():
+def list_products(category: Optional[str] = None):
     """List all products."""
     conn = models.get_connection()
-    rows = conn.execute("SELECT * FROM products").fetchall()
+    if category is None:
+        rows = conn.execute("SELECT * FROM products").fetchall()
+    else:
+        normalized_category = category.strip().upper()
+        if normalized_category not in models.PRODUCT_CATEGORIES:
+            conn.close()
+            raise HTTPException(status_code=422, detail="Categoría no válida")
+        rows = conn.execute(
+            "SELECT * FROM products WHERE category = ?", (normalized_category,)
+        ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 

@@ -15,6 +15,9 @@ class MovementType(str, Enum):
     MERMA = "MERMA"
 
 
+PRODUCT_CATEGORIES = ("CARNE", "BEBIDA", "LACTEO", "VEGETAL", "OTRO")
+
+
 DB_PATH = "data/inventory.db"
 
 
@@ -34,6 +37,7 @@ def init_db():
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
             sku TEXT NOT NULL UNIQUE,
+            category TEXT NOT NULL DEFAULT 'OTRO',
             stock_minimo REAL NOT NULL DEFAULT 0,
             unit TEXT NOT NULL DEFAULT 'unidades',
             created_at TEXT NOT NULL
@@ -66,6 +70,13 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_movements_created
             ON inventory_movements(created_at DESC);
     """)
+    product_columns = {
+        row["name"] for row in conn.execute("PRAGMA table_info(products)").fetchall()
+    }
+    if "category" not in product_columns:
+        conn.execute(
+            "ALTER TABLE products ADD COLUMN category TEXT NOT NULL DEFAULT 'OTRO'"
+        )
     conn.commit()
     conn.close()
 
@@ -84,14 +95,18 @@ def seed_data():
 
     # Products
     products = [
-        ("p1", "Carne de res (entraña)", "CAR-001", 50, "kg", now),
-        ("p2", "Pechuga de pollo", "POL-001", 30, "kg", now),
-        ("p3", "Arepa paisa", "ARE-001", 100, "unidades", now),
-        ("p4", "Salsa BBQ Brasaland", "BBQ-001", 20, "L", now),
-        ("p5", "Papas criollas", "PAP-001", 80, "kg", now),
+        ("p1", "Carne de res (entraña)", "CAR-001", "CARNE", 50, "kg", now),
+        ("p2", "Pechuga de pollo", "POL-001", "CARNE", 30, "kg", now),
+        ("p3", "Arepa paisa", "ARE-001", "OTRO", 100, "unidades", now),
+        ("p4", "Salsa BBQ Brasaland", "BBQ-001", "OTRO", 20, "L", now),
+        ("p5", "Papas criollas", "PAP-001", "VEGETAL", 80, "kg", now),
     ]
     conn.executemany(
-        "INSERT OR IGNORE INTO products VALUES (?,?,?,?,?,?)",
+        """
+        INSERT OR IGNORE INTO products
+            (id, name, sku, category, stock_minimo, unit, created_at)
+        VALUES (?,?,?,?,?,?,?)
+        """,
         products,
     )
 
