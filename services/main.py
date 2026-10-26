@@ -1,18 +1,20 @@
 """
 Brasaland API — Aplicación principal FastAPI.
-MVP Contenedorizado: endpoint /status con verificación de base de datos.
+Incluye el router de inventario y verificación de base de datos.
 """
 import os
 import time
 
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 import psycopg2
-from psycopg2.extras import RealDictCursor
+
+from src.inventory.router import router as inventory_router
 
 app = FastAPI(
-    title="Brasaland API",
-    version="0.1.0",
-    description="API del ecosistema digital de Brasaland",
+    title="Brasaland Services",
+    description="API del ecosistema digital y de inventario de Brasaland.",
+    version="1.0.0",
 )
 
 DATABASE_URL = os.getenv(
@@ -32,24 +34,27 @@ def check_db() -> bool:
         return False
 
 
-@app.get("/status")
+# Incluir router de inventario
+app.include_router(inventory_router)
+
+
+@app.get("/status", tags=["health"])
 def status():
     """Health-check endpoint. Returns API status and database connectivity."""
     db_connected = check_db()
     return {
         "status": "ok",
         "database": "connected" if db_connected else "disconnected",
-        "version": "0.1.0",
+        "version": "1.0.0",
         "uptime_seconds": round(time.time() - BOOT_TIME, 2),
     }
 
 
-@app.get("/health")
-def health():
+@app.get("/health", tags=["health"])
+def health_check():
     """Quick health check for load balancers / orchestration."""
     db_connected = check_db()
     if not db_connected:
-        from fastapi.responses import JSONResponse
         return JSONResponse(
             status_code=503,
             content={"status": "unhealthy", "database": "disconnected"},

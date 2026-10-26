@@ -6,6 +6,9 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
+    volumes:
+      - ./uis/website:/app
+      - /app/node_modules
     env_file:
       - .env
     environment:
@@ -24,12 +27,15 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3001:3001"
+    volumes:
+      - ./uis/backoffice:/app
+      - /app/node_modules
     env_file:
       - .env
     environment:
       - PORT=3001
-      - NODE_ENV=production
-      - BACKEND_URL=http://services:8000
+      - NODE_ENV=development
+      - INVENTORY_API_URL=http://services:8000/api/v1/inventory
     networks:
       - brasaland-net
     depends_on:
@@ -38,10 +44,14 @@ services:
   # 3. Backend API (FastAPI)
   services:
     build:
-      context: ./services
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/Dockerfile
     ports:
       - "8000:8000"
+    volumes:
+      - ./services:/app/services
+      - ./src:/app/src
+      - ./data:/app/data
     env_file:
       - .env
     environment:
