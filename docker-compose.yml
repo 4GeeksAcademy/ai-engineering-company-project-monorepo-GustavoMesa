@@ -2,7 +2,7 @@ services:
   # 1. Sitio web público (Next.js)
   web:
     build:
-      context: ./web
+      context: ./uis/website
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
@@ -20,7 +20,7 @@ services:
   # 2. Panel de administración (Next.js)
   backoffice:
     build:
-      context: ./backoffice
+      context: ./uis/backoffice
       dockerfile: Dockerfile
     ports:
       - "3001:3001"
