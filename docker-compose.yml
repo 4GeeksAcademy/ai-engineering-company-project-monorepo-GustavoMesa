@@ -1,7 +1,5 @@
-version: "3.8"
-
 services:
-  # 1. Sitio web público
+  # 1. Sitio web público (Next.js)
   web:
     build:
       context: ./uis/website
@@ -15,13 +13,14 @@ services:
       - .env
     environment:
       - PORT=3000
-      - NODE_ENV=development
+      - NODE_ENV=production
+      - BACKEND_URL=http://services:8000
     networks:
       - brasaland-net
     depends_on:
       - services
 
-  # 2. Panel de administración (backoffice)
+  # 2. Panel de administración (Next.js)
   backoffice:
     build:
       context: ./uis/backoffice
@@ -57,10 +56,35 @@ services:
       - .env
     environment:
       - PORT=8000
+      - DATABASE_URL=postgresql://brasaland_user:brasaland_pass@db:5432/brasaland
     networks:
       - brasaland-net
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # 4. Base de datos PostgreSQL
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: brasaland
+      POSTGRES_USER: brasaland_user
+      POSTGRES_PASSWORD: brasaland_pass
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - brasaland-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U brasaland_user -d brasaland"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
 # Red interna para comunicación entre servicios por nombre de contenedor
 networks:
   brasaland-net:
     driver: bridge
+
+# Volumen persistente para PostgreSQL
+volumes:
+  pgdata:
