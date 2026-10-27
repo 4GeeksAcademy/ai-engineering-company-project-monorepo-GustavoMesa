@@ -4,6 +4,7 @@ const inventoryApiUrl =
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   poweredByHeader: false,
+  allowedDevOrigins: ["161.35.78.162", "localhost", "127.0.0.1"],
   turbopack: {
     root: process.cwd(),
   },

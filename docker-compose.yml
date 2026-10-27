@@ -56,7 +56,7 @@ services:
       - .env
     environment:
       - PORT=8000
-      - DATABASE_URL=postgresql://brasaland_user:brasaland_pass@db:5432/brasaland
+      - DATABASE_URL=postgresql://brasaland_user:***@db:5432/brasaland
     networks:
       - brasaland-net
     depends_on:

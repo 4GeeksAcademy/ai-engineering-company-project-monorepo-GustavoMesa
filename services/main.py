@@ -11,17 +11,16 @@ import psycopg2
 
 from src.inventory.router import router as inventory_router
 
+BOOT_TIME = time.time()
+DATABASE_URL = os.getenv("DATABASE_URL", "")
+
 app = FastAPI(
     title="Brasaland Services",
     description="API del ecosistema digital y de inventario de Brasaland.",
     version="1.0.0",
 )
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://brasaland_user:brasaland_pass@db:5432/brasaland",
-)
-BOOT_TIME = time.time()
+app.include_router(inventory_router)
 
 
 def check_db() -> bool:
@@ -32,10 +31,6 @@ def check_db() -> bool:
         return True
     except Exception:
         return False
-
-
-# Incluir router de inventario
-app.include_router(inventory_router)
 
 
 @app.get("/status", tags=["health"])
