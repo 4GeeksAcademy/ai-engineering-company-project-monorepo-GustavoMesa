@@ -20,3 +20,5 @@ env/
 # Logs y SO
 *.log
 .DS_Store
+# Bases de datos locales (runtime)
+data/*.db
