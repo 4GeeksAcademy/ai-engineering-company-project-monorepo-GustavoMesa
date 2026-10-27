@@ -6,3 +6,8 @@ Cada subcarpeta dentro de `services/` debe corresponder a **un servicio concreto
 
 - **Propósito principal**: centralizar toda la lógica backend, APIs y consumidores de colas que dan soporte a los casos de uso de la compañía.
 - **Recomendación**: documenta en este archivo (o en sub-READMEs) los servicios que vayas añadiendo, su objetivo, tecnología usada y cómo ejecutarlos.
+
+## API de inventario
+
+`main.py` monta el router de dominio que vive en `../src/inventory/` bajo `/api/v1/inventory/`.
+Desde la raíz del monorepo puede iniciarse con `docker compose up --build services`; la API queda disponible en `http://localhost:8000` y el healthcheck en `/health`.
