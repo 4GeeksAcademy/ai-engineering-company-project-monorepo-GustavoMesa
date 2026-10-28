@@ -4,6 +4,7 @@ services:
     build:
       context: ./uis/website
       dockerfile: Dockerfile
+      target: development
     ports:
       - "3000:3000"
     volumes:
@@ -13,7 +14,7 @@ services:
       - .env
     environment:
       - PORT=3000
-      - NODE_ENV=production
+      - NODE_ENV=development
       - BACKEND_URL=http://services:8000
     networks:
       - brasaland-net
@@ -25,6 +26,7 @@ services:
     build:
       context: ./uis/backoffice
       dockerfile: Dockerfile
+      target: development
     ports:
       - "3001:3001"
     volumes:
