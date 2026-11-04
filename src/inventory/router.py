@@ -1,14 +1,21 @@
 """
 Inventory Manager — FastAPI router with endpoints for stock management.
 Stock is always calculated from movements, never stored directly.
+
+SECURITY: Implements strict serialization separation between Request and Response models
+to prevent data leakage of sensitive fields like unit_price and cost information.
 """
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List
+from datetime import datetime
 from . import service, models
 
 router = APIRouter(prefix="/api/v1/inventory", tags=["inventory"])
 
+# ============================================================================
+# REQUEST MODELS (Input validation)
+# ============================================================================
 
 class MovementCreate(BaseModel):
     product_id: str
@@ -36,15 +43,114 @@ class LocationCreate(BaseModel):
     city: str
 
 
+# ============================================================================
+# RESPONSE MODELS (Output validation — SECURITY: Excludes sensitive fields)
+# ============================================================================
+
+class MovementResponse(BaseModel):
+    """Public response for movement creation.
+    EXCLUDES: unit_price, reference, notes (internal/sensitive data)"""
+    id: str
+    product_id: str
+    location_id: str
+    movement_type: str
+    quantity: float
+    created_at: str
+    
+    class Config:
+        from_attributes = True
+
+
+class MovementHistoryPublic(BaseModel):
+    """Public response for movement history.
+    EXCLUDES: unit_price, reference, notes (internal/sensitive data)"""
+    id: str
+    product_id: str
+    location_id: str
+    movement_type: str
+    quantity: float
+    created_at: str
+    
+    class Config:
+        from_attributes = True
+
+
+class StockInfoPublic(BaseModel):
+    """Public response for stock query."""
+    product_id: str
+    location_id: str
+    current_stock: float
+    alert: bool
+    
+    class Config:
+        from_attributes = True
+
+
+class ProductResponse(BaseModel):
+    """Public response for product creation."""
+    id: str
+    name: str
+    sku: str
+    category: str
+    stock_minimo: float
+    unit: str
+    created_at: str
+    
+    class Config:
+        from_attributes = True
+
+
+class ProductPublic(BaseModel):
+    """Public response for product listing.
+    EXCLUDES: stock_minimo, created_at (internal fields)"""
+    id: str
+    name: str
+    sku: str
+    category: str
+    unit: str
+    
+    class Config:
+        from_attributes = True
+
+
+class LocationResponse(BaseModel):
+    """Public response for location creation."""
+    id: str
+    name: str
+    country: str
+    city: str
+    
+    class Config:
+        from_attributes = True
+
+
+class LocationPublic(BaseModel):
+    """Public response for location listing."""
+    id: str
+    name: str
+    country: str
+    city: str
+    
+    class Config:
+        from_attributes = True
+
+
 @router.on_event("startup")
 def startup():
     models.init_db()
     models.seed_data()
 
 
-@router.post("/movements")
+# ============================================================================
+# ENDPOINTS (Secured with response_model)
+# ============================================================================
+
+@router.post("/movements", response_model=MovementResponse)
 def create_movement(m: MovementCreate):
-    """Register a new inventory movement. Stock is calculated from movements."""
+    """Register a new inventory movement. Stock is calculated from movements.
+    
+    SECURITY: Returns only non-sensitive fields (excludes unit_price, reference, notes).
+    """
     try:
         result = service.registrar_movimiento(
             product_id=m.product_id,
@@ -60,22 +166,31 @@ def create_movement(m: MovementCreate):
         raise HTTPException(status_code=422, detail=str(e))
 
 
-@router.get("/stock")
+@router.get("/stock", response_model=StockInfoPublic)
 def get_stock(product_id: str, location_id: str):
-    """Get calculated stock for a product at a location."""
+    """Get calculated stock for a product at a location.
+    
+    SECURITY: Response schema is explicitly validated by Pydantic.
+    """
     info = service.get_stock_info(product_id, location_id)
     return info
 
 
-@router.get("/movements")
+@router.get("/movements", response_model=List[MovementHistoryPublic])
 def get_movements(product_id: str, location_id: str):
-    """Get movement history for a product at a location."""
+    """Get movement history for a product at a location.
+    
+    SECURITY: Returns only non-sensitive fields (excludes unit_price, reference, notes).
+    """
     return service.get_historial(product_id, location_id)
 
 
-@router.post("/products")
+@router.post("/products", response_model=ProductResponse)
 def create_product(p: ProductCreate):
-    """Create a new product."""
+    """Create a new product.
+    
+    SECURITY: Response is validated by ProductResponse model.
+    """
     import uuid
     from datetime import datetime, timezone
 
@@ -92,30 +207,45 @@ def create_product(p: ProductCreate):
         conn.close()
         raise HTTPException(status_code=400, detail=str(e))
     conn.close()
-    return {"id": pid, "name": p.name, "sku": p.sku}
+    return {
+        "id": pid,
+        "name": p.name,
+        "sku": p.sku,
+        "category": p.category,
+        "stock_minimo": p.stock_minimo,
+        "unit": p.unit,
+        "created_at": now,
+    }
 
 
-@router.get("/products")
+@router.get("/products", response_model=List[ProductPublic])
 def list_products(category: Optional[str] = None):
-    """List all products."""
+    """List all products.
+    
+    SECURITY: Returns only public fields (excludes stock_minimo, created_at).
+    """
     conn = models.get_connection()
     if category is None:
-        rows = conn.execute("SELECT * FROM products").fetchall()
+        rows = conn.execute("SELECT id, name, sku, category, unit FROM products").fetchall()
     else:
         normalized_category = category.strip().upper()
         if normalized_category not in models.PRODUCT_CATEGORIES:
             conn.close()
             raise HTTPException(status_code=422, detail="Categoría no válida")
         rows = conn.execute(
-            "SELECT * FROM products WHERE category = ?", (normalized_category,)
+            "SELECT id, name, sku, category, unit FROM products WHERE category = ?",
+            (normalized_category,)
         ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
 
-@router.post("/locations")
+@router.post("/locations", response_model=LocationResponse)
 def create_location(l: LocationCreate):
-    """Create a new location."""
+    """Create a new location.
+    
+    SECURITY: Response is validated by LocationResponse model.
+    """
     import uuid
 
     conn = models.get_connection()
@@ -130,13 +260,16 @@ def create_location(l: LocationCreate):
         conn.close()
         raise HTTPException(status_code=400, detail=str(e))
     conn.close()
-    return {"id": lid, "name": l.name}
+    return {"id": lid, "name": l.name, "country": l.country, "city": l.city}
 
 
-@router.get("/locations")
+@router.get("/locations", response_model=List[LocationPublic])
 def list_locations():
-    """List all locations."""
+    """List all locations.
+    
+    SECURITY: Response is validated by LocationPublic model.
+    """
     conn = models.get_connection()
-    rows = conn.execute("SELECT * FROM locations").fetchall()
+    rows = conn.execute("SELECT id, name, country, city FROM locations").fetchall()
     conn.close()
     return [dict(r) for r in rows]
