@@ -87,14 +87,13 @@ class StockInfoPublic(BaseModel):
 
 
 class ProductResponse(BaseModel):
-    """Public response for product creation."""
+    """Public response for product creation.
+    EXCLUDES: stock_minimo, created_at (internal fields)"""
     id: str
     name: str
     sku: str
     category: str
-    stock_minimo: float
     unit: str
-    created_at: str
     
     class Config:
         from_attributes = True
@@ -212,9 +211,7 @@ def create_product(p: ProductCreate):
         "name": p.name,
         "sku": p.sku,
         "category": p.category,
-        "stock_minimo": p.stock_minimo,
         "unit": p.unit,
-        "created_at": now,
     }
 
 
