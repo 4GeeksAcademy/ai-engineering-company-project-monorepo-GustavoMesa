@@ -1,22 +1,27 @@
-const highlights = [
-  {
-    number: "01",
-    title: "El fuego como origen",
-    text: "Una cocina que celebra el sabor de la brasa y el cuidado de cada preparación.",
-  },
-  {
-    number: "02",
-    title: "Hecho para compartir",
-    text: "Una mesa abierta para encontrarnos, conversar y disfrutar sin afán.",
-  },
-  {
-    number: "03",
-    title: "Un mismo espíritu",
-    text: "Nacimos en Medellín y llevamos nuestra manera de reunirnos a nuevos lugares.",
-  },
-];
+import { useMemo } from "react";
 
 export default function Home() {
+  const highlights = useMemo(
+    () => [
+      {
+        number: "01",
+        title: "El fuego como origen",
+        text: "Una cocina que celebra el sabor de la brasa y el cuidado de cada preparación.",
+      },
+      {
+        number: "02",
+        title: "Hecho para compartir",
+        text: "Una mesa abierta para encontrarnos, conversar y disfrutar sin afán.",
+      },
+      {
+        number: "03",
+        title: "Un mismo espíritu",
+        text: "Nacimos en Medellín y llevamos nuestra manera de reunirnos a nuevos lugares.",
+      },
+    ],
+    [],
+  );
+
   return (
     <main>
       <header className="site-header">

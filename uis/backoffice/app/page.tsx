@@ -180,9 +180,76 @@ export default function InventoryPage() {
     };
   }, [selectedLocation, selectedProduct, refreshKey]);
 
-  const selectedLocationData = locations.find((location) => location.id === selectedLocation);
-  const selectedProductData = products.find((product) => product.id === selectedProduct);
+  // Optimización: Crear mapa de stocks para búsqueda O(1) en lugar de O(n)
+  const stockMap = useMemo(
+    () => new Map(stocks.map((s) => [s.product_id, s])),
+    [stocks],
+  );
+
+  // Optimización: Memoizar búsquedas complejas
+  const selectedLocationData = useMemo(
+    () => locations.find((location) => location.id === selectedLocation),
+    [locations, selectedLocation],
+  );
+
+  const selectedProductData = useMemo(
+    () => products.find((product) => product.id === selectedProduct),
+    [products, selectedProduct],
+  );
+
+  // Optimización: Precalcular alertas
   const alertCount = useMemo(() => stocks.filter((stock) => stock.alert).length, [stocks]);
+
+  // Optimización: Memoizar lista de productos filtrados con stock
+  const inventoryRows = useMemo(
+    () =>
+      !loading
+        ? products.map((product) => {
+            const stock = stockMap.get(product.id);
+            return { product, stock };
+          })
+        : [],
+    [products, stockMap, loading],
+  );
+
+  // Optimización: Memoizar lista de movimientos filtrados
+  const displayedMovements = useMemo(
+    () => movements.slice(0, 5),
+    [movements],
+  );
+
+  // Optimización: Memoizar current date para header (evitar recalcular cada render)
+  const currentDate = useMemo(
+    () =>
+      new Intl.DateTimeFormat("es-CO", {
+        dateStyle: "full",
+        timeZone: "America/Bogota",
+      }).format(new Date()),
+    [],
+  );
+
+  // Optimización: Memoizar handlers para evitar re-renders innecesarios de child components
+  const handleProductSelect = useCallback((productId: string) => {
+    setSelectedProduct(productId);
+  }, []);
+
+  const handleLocationSelect = useCallback((event: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedLocation(event.target.value);
+  }, []);
+
+  const handleCategoryFilter = useCallback((event: React.ChangeEvent<HTMLSelectElement>) => {
+    setCategoryFilter(event.target.value);
+  }, []);
+
+  const handleOpenForm = useCallback(() => {
+    setError("");
+    setNotice("");
+    setFormOpen(true);
+  }, []);
+
+  const handleCloseForm = useCallback(() => {
+    setFormOpen(false);
+  }, []);
 
   const submitMovement = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -238,7 +305,7 @@ export default function InventoryPage() {
           <div className="topbar-right">
             <span className="secure-badge"><span /> Sistema interno</span>
             <span className="topbar-divider" />
-            <span className="topbar-date">{new Intl.DateTimeFormat("es-CO", { dateStyle: "full", timeZone: "America/Bogota" }).format(new Date())}</span>
+            <span className="topbar-date">{currentDate}</span>
           </div>
         </header>
 
@@ -249,7 +316,7 @@ export default function InventoryPage() {
               <h1>Inventario</h1>
               <p className="page-subtitle">Existencias calculadas desde los movimientos registrados.</p>
             </div>
-            <button className="primary-button" onClick={() => { setError(""); setNotice(""); setFormOpen(true); }} disabled={!products.length || !selectedLocation}>
+            <button className="primary-button" onClick={handleOpenForm} disabled={!products.length || !selectedLocation}>
               <span>＋</span> Registrar movimiento
             </button>
           </div>
@@ -262,7 +329,7 @@ export default function InventoryPage() {
             <select
               id="location-select"
               value={selectedLocation}
-              onChange={(event) => setSelectedLocation(event.target.value)}
+              onChange={handleLocationSelect}
               disabled={loading || locations.length === 0}
             >
               {locations.length === 0 && <option value="">Sin locales disponibles</option>}
@@ -300,7 +367,7 @@ export default function InventoryPage() {
                   className="category-filter"
                   id="category-filter"
                   value={categoryFilter}
-                  onChange={(event) => setCategoryFilter(event.target.value)}
+                  onChange={handleCategoryFilter}
                 >
                   <option value="TODAS">Todas</option>
                   <option value="CARNE">Carne</option>
@@ -318,18 +385,49 @@ export default function InventoryPage() {
                 <tbody>
                   {loading && <tr><td className="empty-cell" colSpan={5}>Conectando con el servicio de inventario…</td></tr>}
                   {!loading && products.length === 0 && !error && <tr><td className="empty-cell" colSpan={5}>No hay productos registrados.</td></tr>}
-                  {!loading && products.map((product) => {
-                    const stock = stocks.find((item) => item.product_id === product.id);
-                    return (
-                      <tr key={product.id} className={selectedProduct === product.id ? "selected-row" : ""} onClick={() => setSelectedProduct(product.id)}>
-                        <td><button className="product-cell" onClick={() => setSelectedProduct(product.id)}><span className="product-avatar">{product.name.slice(0, 1).toUpperCase()}</span><span><strong>{product.name}</strong><small>{product.sku}</small></span></button></td>
-                        <td><span className="category-label">{product.category ?? "Sin categoría"}</span></td>
-                        <td className="stock-value">{stock ? formatQuantity(stock.current_stock) : "—"} <span>{product.unit}</span></td>
-                        <td>{formatQuantity(product.stock_minimo)} <span className="unit-muted">{product.unit}</span></td>
-                        <td>{stock?.alert ? <span className="status status-alert"><span /> Bajo mínimo</span> : stock ? <span className="status status-ok"><span /> Saludable</span> : <span className="status status-loading">Consultando</span>}</td>
+                  {!loading &&
+                    inventoryRows.map(({ product, stock }) => (
+                      <tr
+                        key={product.id}
+                        className={selectedProduct === product.id ? "selected-row" : ""}
+                        onClick={() => handleProductSelect(product.id)}
+                      >
+                        <td>
+                          <button
+                            className="product-cell"
+                            onClick={() => handleProductSelect(product.id)}
+                          >
+                            <span className="product-avatar">{product.name.slice(0, 1).toUpperCase()}</span>
+                            <span>
+                              <strong>{product.name}</strong>
+                              <small>{product.sku}</small>
+                            </span>
+                          </button>
+                        </td>
+                        <td>
+                          <span className="category-label">{product.category ?? "Sin categoría"}</span>
+                        </td>
+                        <td className="stock-value">
+                          {stock ? formatQuantity(stock.current_stock) : "—"} <span>{product.unit}</span>
+                        </td>
+                        <td>
+                          {formatQuantity(product.stock_minimo)} <span className="unit-muted">{product.unit}</span>
+                        </td>
+                        <td>
+                          {stock?.alert ? (
+                            <span className="status status-alert">
+                              <span /> Bajo mínimo
+                            </span>
+                          ) : stock ? (
+                            <span className="status status-ok">
+                              <span /> Saludable
+                            </span>
+                          ) : (
+                            <span className="status status-loading">Consultando</span>
+                          )}
+                        </td>
                       </tr>
-                    );
-                  })}
+                    ))}
                 </tbody>
               </table>
             </div>
@@ -347,12 +445,22 @@ export default function InventoryPage() {
               <div className="empty-history">No hay movimientos para este producto en el local seleccionado.</div>
             ) : (
               <div className="movement-list">
-                {movements.slice(0, 5).map((movement) => (
+                {displayedMovements.map((movement) => (
                   <article className="movement-row" key={movement.id}>
-                    <span className={`movement-icon movement-${movement.movement_type.toLowerCase()}`}>{movement.movement_type === "ENTRADA" ? "↓" : movement.movement_type === "SALIDA" ? "↑" : "!"}</span>
-                    <div className="movement-main"><strong>{movement.movement_type}</strong><span>{movement.reference || movement.notes || "Sin referencia"}</span></div>
+                    <span className={`movement-icon movement-${movement.movement_type.toLowerCase()}`}>
+                      {movement.movement_type === "ENTRADA" ? "↓" : movement.movement_type === "SALIDA" ? "↑" : "!"}
+                    </span>
+                    <div className="movement-main">
+                      <strong>{movement.movement_type}</strong>
+                      <span>{movement.reference || movement.notes || "Sin referencia"}</span>
+                    </div>
                     <time>{formatDate(movement.created_at)}</time>
-                    <strong className={`movement-quantity movement-quantity-${movement.movement_type.toLowerCase()}`}>{movement.movement_type === "ENTRADA" ? "+" : "−"}{formatQuantity(movement.quantity)} {selectedProductData.unit}</strong>
+                    <strong
+                      className={`movement-quantity movement-quantity-${movement.movement_type.toLowerCase()}`}
+                    >
+                      {movement.movement_type === "ENTRADA" ? "+" : "−"}
+                      {formatQuantity(movement.quantity)} {selectedProductData.unit}
+                    </strong>
                   </article>
                 ))}
               </div>
@@ -363,9 +471,23 @@ export default function InventoryPage() {
       </section>
 
       {formOpen && (
-        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setFormOpen(false); }}>
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) handleCloseForm();
+          }}
+        >
           <section className="movement-modal" role="dialog" aria-modal="true" aria-labelledby="movement-title">
-            <div className="modal-heading"><div><p className="eyebrow">INVENTARIO · NUEVO REGISTRO</p><h2 id="movement-title">Registrar movimiento</h2></div><button className="close-button" onClick={() => setFormOpen(false)} aria-label="Cerrar">×</button></div>
+            <div className="modal-heading">
+              <div>
+                <p className="eyebrow">INVENTARIO · NUEVO REGISTRO</p>
+                <h2 id="movement-title">Registrar movimiento</h2>
+              </div>
+              <button className="close-button" onClick={handleCloseForm} aria-label="Cerrar">
+                ×
+              </button>
+            </div>
             <p className="modal-intro">Registra una entrada, salida o merma. La existencia se recalculará desde el historial.</p>
             <form onSubmit={submitMovement}>
               <label>Producto<select required value={selectedProduct} onChange={(event) => setSelectedProduct(event.target.value)}>{products.map((product) => <option value={product.id} key={product.id}>{product.name} · {product.sku}</option>)}</select></label>
@@ -377,7 +499,14 @@ export default function InventoryPage() {
               <label>Referencia <span className="optional">(opcional)</span><input value={reference} onChange={(event) => setReference(event.target.value)} placeholder="Factura, venta u orden" /></label>
               <label>Notas <span className="optional">(opcional)</span><textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} placeholder="Añade un detalle para trazabilidad" /></label>
               <div className="modal-note"><span>i</span> Fecha y hora se asignan automáticamente al registrar.</div>
-              <div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setFormOpen(false)}>Cancelar</button><button type="submit" className="primary-button" disabled={submitting || !products.length || !locations.length}>{submitting ? "Registrando…" : "Confirmar movimiento"}</button></div>
+              <div className="modal-actions">
+                <button type="button" className="secondary-button" onClick={handleCloseForm}>
+                  Cancelar
+                </button>
+                <button type="submit" className="primary-button" disabled={submitting || !products.length || !locations.length}>
+                  {submitting ? "Registrando…" : "Confirmar movimiento"}
+                </button>
+              </div>
             </form>
           </section>
         </div>

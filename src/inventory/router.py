@@ -2,6 +2,7 @@
 Inventory Manager — FastAPI router with endpoints for stock management.
 Stock is always calculated from movements, never stored directly.
 
+PERFORMANCE: Implements caching for frequently-queried endpoints (products, locations, stock).
 SECURITY: Implements strict serialization separation between Request and Response models
 to prevent data leakage of sensitive fields like unit_price and cost information.
 """
@@ -10,8 +11,10 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
 from . import service, models
+from .cache import get_cache, invalidate_cache_for_product, invalidate_cache_for_stock
 
 router = APIRouter(prefix="/api/v1/inventory", tags=["inventory"])
+cache = get_cache()
 
 # ============================================================================
 # REQUEST MODELS (Input validation)
@@ -148,6 +151,7 @@ def startup():
 def create_movement(m: MovementCreate):
     """Register a new inventory movement. Stock is calculated from movements.
     
+    PERFORMANCE: Invalidates stock cache for affected product/location pair.
     SECURITY: Returns only non-sensitive fields (excludes unit_price, reference, notes).
     """
     try:
@@ -160,6 +164,13 @@ def create_movement(m: MovementCreate):
             reference=m.reference,
             notes=m.notes,
         )
+        
+        # Invalidar caché de stock para este producto/ubicación
+        invalidate_cache_for_stock(m.product_id, m.location_id)
+        
+        # Invalidar caché de movimientos para este producto
+        cache.invalidate_pattern(f"movements:{m.product_id}:{m.location_id}")
+        
         return result
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
@@ -169,9 +180,21 @@ def create_movement(m: MovementCreate):
 def get_stock(product_id: str, location_id: str):
     """Get calculated stock for a product at a location.
     
+    PERFORMANCE: Results are cached for 5 minutes to avoid repeated calculations.
     SECURITY: Response schema is explicitly validated by Pydantic.
     """
+    # Crear clave de caché única
+    cache_key = f"stock:{product_id}:{location_id}"
+    
+    # Intentar obtener del caché
+    cached_result = cache.get(cache_key)
+    if cached_result is not None:
+        return cached_result
+    
+    # Si no está en caché, calcular y almacenar
     info = service.get_stock_info(product_id, location_id)
+    cache.set(cache_key, info, ttl_seconds=300)  # 5 minutos TTL
+    
     return info
 
 
@@ -179,15 +202,28 @@ def get_stock(product_id: str, location_id: str):
 def get_movements(product_id: str, location_id: str):
     """Get movement history for a product at a location.
     
+    PERFORMANCE: Results are cached for 2 minutes to balance freshness with performance.
     SECURITY: Returns only non-sensitive fields (excludes unit_price, reference, notes).
     """
-    return service.get_historial(product_id, location_id)
+    cache_key = f"movements:{product_id}:{location_id}"
+    
+    # Intentar obtener del caché
+    cached_result = cache.get(cache_key)
+    if cached_result is not None:
+        return cached_result
+    
+    # Si no está en caché, consultar base de datos
+    result = service.get_historial(product_id, location_id)
+    cache.set(cache_key, result, ttl_seconds=120)  # 2 minutos TTL
+    
+    return result
 
 
 @router.post("/products", response_model=ProductResponse)
 def create_product(p: ProductCreate):
     """Create a new product.
     
+    PERFORMANCE: Invalidates product list cache after creation.
     SECURITY: Response is validated by ProductResponse model.
     """
     import uuid
@@ -206,6 +242,10 @@ def create_product(p: ProductCreate):
         conn.close()
         raise HTTPException(status_code=400, detail=str(e))
     conn.close()
+    
+    # Invalidar caché de productos
+    cache.invalidate_pattern("products:list:")
+    
     return {
         "id": pid,
         "name": p.name,
@@ -219,8 +259,18 @@ def create_product(p: ProductCreate):
 def list_products(category: Optional[str] = None):
     """List all products.
     
+    PERFORMANCE: Results are cached for 10 minutes to avoid repeated database queries.
     SECURITY: Returns only public fields (excludes stock_minimo, created_at).
     """
+    # Crear clave de caché única basada en categoría
+    cache_key = f"products:list:{category or 'all'}"
+    
+    # Intentar obtener del caché
+    cached_result = cache.get(cache_key)
+    if cached_result is not None:
+        return cached_result
+    
+    # Si no está en caché, consultar base de datos
     conn = models.get_connection()
     if category is None:
         rows = conn.execute("SELECT id, name, sku, category, unit FROM products").fetchall()
@@ -234,13 +284,18 @@ def list_products(category: Optional[str] = None):
             (normalized_category,)
         ).fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    
+    result = [dict(r) for r in rows]
+    cache.set(cache_key, result, ttl_seconds=600)  # 10 minutos TTL
+    
+    return result
 
 
 @router.post("/locations", response_model=LocationResponse)
 def create_location(l: LocationCreate):
     """Create a new location.
     
+    PERFORMANCE: Invalidates location list cache after creation.
     SECURITY: Response is validated by LocationResponse model.
     """
     import uuid
@@ -257,6 +312,10 @@ def create_location(l: LocationCreate):
         conn.close()
         raise HTTPException(status_code=400, detail=str(e))
     conn.close()
+    
+    # Invalidar caché de locaciones
+    cache.invalidate_pattern("locations:")
+    
     return {"id": lid, "name": l.name, "country": l.country, "city": l.city}
 
 
@@ -264,9 +323,22 @@ def create_location(l: LocationCreate):
 def list_locations():
     """List all locations.
     
+    PERFORMANCE: Results are cached for 10 minutes as location data rarely changes.
     SECURITY: Response is validated by LocationPublic model.
     """
+    cache_key = "locations:all"
+    
+    # Intentar obtener del caché
+    cached_result = cache.get(cache_key)
+    if cached_result is not None:
+        return cached_result
+    
+    # Si no está en caché, consultar base de datos
     conn = models.get_connection()
     rows = conn.execute("SELECT id, name, country, city FROM locations").fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    
+    result = [dict(r) for r in rows]
+    cache.set(cache_key, result, ttl_seconds=600)  # 10 minutos TTL
+    
+    return result

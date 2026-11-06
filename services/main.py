@@ -1,15 +1,23 @@
 """
 Brasaland API — Aplicación principal FastAPI.
-Incluye el router de inventario y verificación de base de datos.
+Incluye el router de inventario, middleware de rendimiento y caching.
 """
 import os
 import time
+import logging
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 import psycopg2
 
 from src.inventory.router import router as inventory_router
+from src.inventory.middleware import PerformanceMiddleware, CacheMetricsMiddleware
+
+# Configurar logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
 
 BOOT_TIME = time.time()
 DATABASE_URL = os.getenv("DATABASE_URL", "")
@@ -19,6 +27,10 @@ app = FastAPI(
     description="API del ecosistema digital y de inventario de Brasaland.",
     version="1.0.0",
 )
+
+# Agregar middlewares de rendimiento
+app.add_middleware(PerformanceMiddleware)
+app.add_middleware(CacheMetricsMiddleware)
 
 app.include_router(inventory_router)
 
